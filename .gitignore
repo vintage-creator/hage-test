@@ -1,0 +1,61 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build
+dist/
+.build/
+out/
+
+# Env
+.env
+.env.local
+.env.*.local
+.env.test
+.env.production
+
+# Prisma local DB (sqlite dev DBs)
+prisma/dev.db
+prisma/dev.db-journal
+
+# Logs & debug
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs / editors
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Coverage
+coverage/
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+
+# Jest
+jest.config.ts
+test-results/
+
+# Generated OpenAPI/clients (if you generate)
+openapi.json
+clients/
+.generated/
+
+# Misc
+.vault/           # for secret stores if any
+.tmp/
+.cache/
+
+# Lockfiles (optional: keep one per project)
+# package-lock.json
+# yarn.lock

@@ -1,0 +1,63 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  DISPATCHER
+}
+
+enum ShipmentStatus {
+  PENDING
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  password  String
+  name      String?
+  role      Role      @default(USER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // relations
+  shipments Shipment[] @relation("CustomerShipments")
+}
+
+model Shipment {
+  id                String         @id @default(cuid())
+  trackingNumber    String         @unique
+  origin            String
+  destination       String
+  status            ShipmentStatus @default(PENDING)
+  customerId        String
+  estimatedDelivery DateTime
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  customer          User           @relation("CustomerShipments", fields: [customerId], references: [id])
+  events            TrackingEvent[]
+}
+
+model TrackingEvent {
+  id          String   @id @default(cuid())
+  shipmentId  String
+  status      String
+  location    String?
+  note        String?
+  timestamp   DateTime @default(now())
+
+  shipment    Shipment @relation(fields: [shipmentId], references: [id])
+
+  @@index([shipmentId])
+}
