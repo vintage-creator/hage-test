@@ -11,6 +11,7 @@ We value clean, consistent, and collaborative development. Please follow these g
 2. **Create a branch** from `main` for your feature or fix:
    ```bash
    git checkout -b feat/short-description
+   ```
 Example: feat/add-shipment-tracking or fix/validation-error
 3. Make your changes and commit with a conventional commit message (see below)
 4. Push your branch and create a Pull Request
