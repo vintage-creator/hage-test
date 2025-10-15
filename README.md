@@ -13,6 +13,7 @@ This backend MVP powers the core API infrastructure for shipment tracking, user 
 
 ## Project Structure
 
+```bash
 HageMVP-Backend/
 ├─ .github/
 │ └─ workflows/
@@ -42,6 +43,7 @@ HageMVP-Backend/
 ├─ CONTRIBUTING.md
 ├─ README.md
 └─ tsconfig.json
+```
 
 ## ⚙️ Getting Started
 
