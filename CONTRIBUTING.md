@@ -1,11 +1,11 @@
-# 🤝 Contributing Guidelines
+# Contributing Guidelines
 
 Thank you for contributing to **Hage Logistics**!
 
 We value clean, consistent, and collaborative development. Please follow these guidelines to make the development process smooth for everyone.
 
 
-## 📌 General Workflow
+## General Workflow
 
 1. **Fork** the repository
 2. **Create a branch** from `main` for your feature or fix:
@@ -16,7 +16,7 @@ Example: feat/add-shipment-tracking or fix/validation-error
 4. Push your branch and create a Pull Request
 5. Wait for review and approval before merging
 
-## 🧭 Commit Message Convention
+## Commit Message Convention
 
 We use **Conventional Commits**:
 ```bash
@@ -40,7 +40,7 @@ We use **Conventional Commits**:
 - docs(readme): update setup instructions
 
 
-## 🪜 Branch Naming Convention
+## Branch Naming Convention
 
 ```bash
 type/short-description
@@ -53,7 +53,7 @@ type/short-description
 - chore/update-ci-pipeline
 
 
-## 🧪 Testing Before PR
+## Testing Before PR
 
 Please ensure all tests pass **before creating a Pull Request**:
 
@@ -62,7 +62,7 @@ npm run test
 npm run test:e2e
 ```
 
-## 💅 Code Style
+## Code Style
 
 - Use **TypeScript best practices**
 - Run `npm run lint` before pushing
@@ -70,13 +70,13 @@ npm run test:e2e
 - Document complex logic with **clear, concise comments**
 
 
-## 🛡️ Security
+## Security
 
 - Never commit `.env` files or secrets
 - Do not log sensitive information
 - Use **environment variables** for configuration
 
-## 🔍 Pull Request Guidelines
+## Pull Request Guidelines
 
 - Keep PRs **small and focused**
 - Include a **clear description** of the changes
