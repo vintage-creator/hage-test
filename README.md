@@ -35,11 +35,13 @@ HageMVP-Backend/
 │ │ └─ tracking/
 │ ├─ prisma/
 │ │ └─ prisma.service.ts
+│ ├─ shared/
 │ └─ utils/
 │ └─ logger.ts
 ├─ test/
 │ └─ app.e2e-spec.ts
 ├─ .env.example
+├─ .gitignore
 ├─ CONTRIBUTING.md
 ├─ README.md
 └─ tsconfig.json
