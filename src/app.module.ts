@@ -6,7 +6,7 @@ import { PrismaModule } from "./prisma/prisma.module";
 // Feature modules
 import { AuthModule } from "./modules/auth/auth.module";
 //import { UsersModule } from "./modules/users/users.module";
-//import { ShipmentsModule } from "./modules/shipments/shipments.module";
+import { ShipmentsModule } from "./modules/shipments/shipments.module";
 
 @Module({
   imports: [
@@ -14,7 +14,7 @@ import { AuthModule } from "./modules/auth/auth.module";
     PrismaModule,
     AuthModule,
     //UsersModule,
-    //ShipmentsModule,
+    ShipmentsModule,
   ],
   controllers: [],
   providers: [],

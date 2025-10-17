@@ -1,0 +1,76 @@
+<mjml>
+  <mj-head>
+    <mj-attributes>
+      <mj-all font-family="Helvetica, Arial, sans-serif" />
+      <mj-class name="btn" background-color="#2563EB" color="#ffffff" border-radius="6px" padding="12px 24px" />
+    </mj-attributes>
+
+    <mj-preview>Your shipment status has been updated!</mj-preview>
+  </mj-head>
+
+  <mj-body background-color="#F5F7FA">
+    <!-- Logo Section -->
+    <mj-section padding="20px 0">
+      <mj-column width="33.33%" padding="0"></mj-column>
+
+      <mj-column
+        width="120px"
+        background-color="#050301"
+        border-radius="10px"
+        vertical-align="middle"
+        padding="6px"
+      >
+        <mj-image
+          width="80px"
+          src="{{logoUrl}}"
+          alt="{{appName}}"
+          padding="0"
+          align="center"
+          border-radius="6px"
+        />
+      </mj-column>
+
+      <mj-column width="33.33%" padding="0"></mj-column>
+    </mj-section>
+
+    <!-- Content Section -->
+    <mj-section background-color="#ffffff" padding="24px" border-radius="8px">
+      <mj-column>
+        <mj-text font-size="20px" font-weight="700">
+          Shipment Status Update 🚚
+        </mj-text>
+
+        <mj-text font-size="16px" color="#374151" padding-top="8px" line-height="1.6">
+          Hi {{clientName}}, <br />
+          Your shipment <strong>{{trackingNumber}}</strong> has been updated.
+        </mj-text>
+
+        <mj-text font-size="15px" color="#111827" padding-top="12px" line-height="1.8">
+          <strong>Current Status:</strong> {{status}} <br />
+          <strong>Origin:</strong> {{origin}} <br />
+          <strong>Destination:</strong> {{destination}} <br />
+          <strong>Estimated Delivery:</strong> {{estimatedDelivery}}
+        </mj-text>
+
+        <mj-button
+          mj-class="btn"
+          href="{{trackingUrl}}"
+          target="_blank"
+          padding-top="18px"
+        >
+          View Shipment Details
+        </mj-button>
+
+        <mj-text color="#6B7280" font-size="13px" padding-top="18px">
+          You can track this shipment anytime using your tracking number: {{trackingNumber}}.
+        </mj-text>
+
+        <mj-divider border-color="#E5E7EB" padding="20px 0" />
+
+        <mj-text font-size="12px" color="#9CA3AF">
+          © {{year}} {{appName}} · {{supportText}}
+        </mj-text>
+      </mj-column>
+    </mj-section>
+  </mj-body>
+</mjml>
