@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsNotEmpty, IsNumber, IsEnum, IsObject, Min, ValidateNested } from "class-validator";
+import { IsString, IsEmail, IsOptional, IsNotEmpty, IsNumber, IsEnum, Min, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
 
 export enum PickupMode {
@@ -28,7 +28,16 @@ class LocationDto {
 }
 
 export class CreateShipmentDto {
-	// CLIENT DETAILS
+	// Tracking / Order Info
+	@IsString({ message: "Order ID must be a string" })
+	@IsOptional()
+	orderId!: string; // e.g. SHP-2025-12345
+
+	@IsString({ message: "Tracking ID must be a string" })
+	@IsOptional()
+	trackingId?: string; // optional unique tracking reference
+
+	// Client Details
 	@IsString({ message: "Client name must be a string" })
 	@IsNotEmpty({ message: "Client name is required" })
 	clientName!: string;
@@ -41,7 +50,7 @@ export class CreateShipmentDto {
 	@IsOptional()
 	phone?: string;
 
-	// CARGO DETAILS
+	// Cargo Details
 	@IsString({ message: "Cargo type must be a string" })
 	@IsNotEmpty({ message: "Cargo type is required" })
 	cargoType!: string;
@@ -60,7 +69,7 @@ export class CreateShipmentDto {
 	@IsOptional()
 	handlingInstructions?: string;
 
-	// ORIGIN & DESTINATION
+	// Origin & Destination
 	@ValidateNested({ message: "Origin must be a valid location object" })
 	@Type(() => LocationDto)
 	@IsNotEmpty({ message: "Origin is required" })
@@ -71,18 +80,18 @@ export class CreateShipmentDto {
 	@IsNotEmpty({ message: "Destination is required" })
 	destination!: LocationDto;
 
-	// PICKUP & DELIVERY
+	// Pickup & Delivery
 	@IsEnum(PickupMode, { message: "Pickup mode must be either PICKUP or DROPOFF" })
 	@IsNotEmpty({ message: "Pickup mode is required" })
 	pickupMode!: PickupMode;
 
 	@IsOptional()
-	pickupDate?: string; // ISO string
+	pickupDate?: string;
 
 	@IsOptional()
-	deliveryDate?: string; // ISO string
+	deliveryDate?: string;
 
-	// SERVICE & PRICING
+	// Service & Pricing
 	@IsEnum(ServiceType, {
 		message: "Service type must be one of: AIR, OCEAN, ROAD, or RAIL",
 	})

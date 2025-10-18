@@ -20,8 +20,8 @@ export class ShipmentsController {
 
 	// Protected: Create shipment with file upload (documents)
 	@Post()
-	@UseGuards(JwtAuthGuard, RolesGuard)
-	@Roles("LOGISTIC_SERVICE_PROVIDER", "ENTERPRISE", "DISTRIBUTOR")
+	@UseGuards(JwtAuthGuard)
+	// @Roles("LOGISTIC_SERVICE_PROVIDER", "ENTERPRISE", "DISTRIBUTOR")
 	@ApiBearerAuth("access-token")
 	@ApiConsumes("multipart/form-data")
 	@UseInterceptors(FilesInterceptor("documents"))

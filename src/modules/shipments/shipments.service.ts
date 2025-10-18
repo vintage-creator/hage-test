@@ -35,9 +35,6 @@ export class ShipmentsService {
 			const uploadPromises = files?.map((file) => this.storage.uploadFile(file, { folder: "shipment-documents" })) ?? [];
 			const uploadedDocs = await Promise.all(uploadPromises);
 
-			// Generate unique tracking ID
-			const orderId = this.generateOrderTrackingId();
-
 			// Calculate total cost
 			const totalCost = this.calculateTotalCost(dto.baseFrieght as any, dto.handlingFee as any, dto.insuranceFee as any);
 
@@ -47,7 +44,7 @@ export class ShipmentsService {
 			const shipment = await this.prisma.$transaction(async (tx) => {
 				const createdShipment = await tx.shipment.create({
 					data: {
-						orderId: orderId,
+						orderId: dto.orderId,
 						clientName: dto.clientName,
 						email: dto.email,
 						phone: dto.phone,
@@ -98,17 +95,17 @@ export class ShipmentsService {
 			if (dto.email) {
 				await this.mailer.sendShipmentCreated(dto.email, {
 					clientName: dto.clientName,
-					trackingNumber: orderId,
+					trackingNumber: dto.orderId,
 					origin: (dto.origin as any).country,
 					destination: (dto.destination as any).country,
 					estimatedDelivery: dto.deliveryDate ? new Date(dto.deliveryDate).toDateString() : "TBD",
 					status: "Pending Acceptance",
-					trackingUrl: `${this.cfg.get("APP_URL")}/shipments/track/${orderId}`,
+					trackingUrl: `${this.cfg.get("APP_URL")}/shipments/track/${dto.orderId}`,
 				});
 			}
 
 			// Create in-app notification
-			await this.createNotification(lspUserId, `New shipment ${orderId} created successfully`, "in-app");
+			await this.createNotification(lspUserId, `New shipment ${dto.orderId} created successfully`, "in-app");
 
 			return shipment;
 		} catch (err: any) {
@@ -786,7 +783,7 @@ export class ShipmentsService {
 	}
 
 	private validateShipmentData(dto: CreateShipmentDto): void {
-		if (!dto.clientName || !dto.cargoType) {
+		if (!dto.clientName || !dto.cargoType || !dto.orderId) {
 			throw new BadRequestException("Missing required fields");
 		}
 	}
