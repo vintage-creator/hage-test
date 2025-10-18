@@ -91,7 +91,7 @@ export class AuthService {
 			};
 
 			try {
-				// await this.mailer.sendVerificationEmail(user.email!, emailContext);
+				await this.mailer.sendVerificationEmail(user.email!, emailContext);
 			} catch (emailErr) {
 				// try cleanup if email fails
 				try {

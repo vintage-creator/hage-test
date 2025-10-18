@@ -20,6 +20,43 @@ enum RoleType {
   LAST_MILE_PROVIDER
 }
 
+enum ShipmentStatus {
+  PENDING_ACCEPTANCE
+  ACCEPTED
+  EN_ROUTE_TO_PICKUP
+  PICKED_UP
+  IN_TRANSIT
+  ARRIVED_AT_DESTINATION
+  COMPLETED
+  CANCELLED
+}
+
+enum PickupMode {
+  PICKUP
+  DROPOFF
+}
+
+enum ServiceType {
+  AIR
+  OCEAN
+  ROAD
+  RAIL
+}
+
+enum DocumentType {
+  COMMERCIAL_INVOICE
+  PACKING_LIST
+  WAYBILL
+  BILL_OF_LADING
+  OTHER
+}
+
+enum NotificationType {
+  EMAIL
+  IN_APP
+  SMS
+}
+
 model User {
   id         String   @id @default(cuid())
   email      String?  @unique
@@ -38,8 +75,16 @@ model User {
   passwordResetTokens PasswordResetToken[]
   refreshTokens       RefreshToken[]
 
-  shipments           Shipment[]           @relation("CustomerShipments")
-  notifications       Notification[]
+  // Shipment Relations
+  createdShipments       Shipment[]           @relation("ShipmentCreator")
+  customerShipments      Shipment[]           @relation("CustomerShipments")
+  transporterShipments   Shipment[]           @relation("TransporterShipments")
+  
+  // Status History
+  statusUpdates          ShipmentStatusHistory[]
+  
+  // Notifications
+  notifications          Notification[]
 }
 
 model Company {
@@ -54,6 +99,7 @@ model Company {
 
   documents TrackingDocument[]
   users     User[]
+  warehouses      Warehouse[]
 }
 
 model TrackingDocument {
@@ -103,75 +149,126 @@ model RefreshToken {
   user User @relation(fields: [userId], references: [id])
 }
 
+model Warehouse {
+  id          String   @id @default(cuid())
+  name        String
+  address     String
+  companyId   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company     Company     @relation(fields: [companyId], references: [id])
+  shipments   Shipment[]  @relation("WarehouseShipments")
+}
 
 model Shipment {
-  id                  String              @id @default(uuid())
-  trackingNumber      String              @unique
-  status              String              @default("pending")
-  customerId          String
-
-  // ORIGIN DETAILS
-  originCountry       String
-  originState         String
-  originAddress       String
-  originPhone         String?
-
-  // DESTINATION DETAILS
-  destinationCountry  String
-  destinationState    String
-  destinationAddress  String
-  destinationPhone    String?
-
-  // SHIPMENT DETAILS
-  payment             Float?
-  client              String?
-  email               String?
-  cargoType           String?
-  weight              String?
-  tons                Float?
-  pickupDate          DateTime?
-  deliveryDate        DateTime?
-  serviceLevel        String?
-
-  // METADATA
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
-
+  id                    String          @id @default(uuid())
+  orderId               String          @unique // ORD-2025-00001
+  
+  // CLIENT DETAILS
+  clientName            String
+  email                 String?
+  phone                 String?
+  
+  // CARGO DETAILS
+  cargoType             String
+  tons                  Float
+  weight                Float
+  handlingInstructions  String?
+  
+  // ORIGIN & DESTINATION (JSON format)
+  origin                Json            // {country, region, state, lga, address}
+  destination           Json
+  
+  // PICKUP & DELIVERY
+  pickupMode            PickupMode
+  pickupDate            DateTime?
+  deliveryDate          DateTime?
+  
+  // SERVICE & PRICING
+  serviceType           ServiceType
+  baseFrieght           Float
+  handlingFee           Float
+  insuranceFee          Float?
+  totalCost             Float
+  
+  // STATUS & ASSIGNMENT
+  status                ShipmentStatus  @default(PENDING_ACCEPTANCE)
+  assignedTransporterId String?
+  assignedWarehouseId   String?
+  
+  // TRACKING
+  createdBy             String
+  customerId            String
+  
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  
   // RELATIONS
-  customer            User               @relation("CustomerShipments", fields: [customerId], references: [id])
-  events              TrackingEvent[]
-  documents           ShipmentDocument[]
+  creator               User                      @relation("ShipmentCreator", fields: [createdBy], references: [id])
+  customer              User                      @relation("CustomerShipments", fields: [customerId], references: [id])
+  transporter           User?                     @relation("TransporterShipments", fields: [assignedTransporterId], references: [id])
+  warehouse             Warehouse?                @relation("WarehouseShipments", fields: [assignedWarehouseId], references: [id])
+  
+  documents             ShipmentDocument[]
+  statusHistory         ShipmentStatusHistory[]
+  events                TrackingEvent[]
+  
+  @@index([orderId])
+  @@index([status])
+  @@index([customerId])
+  @@index([createdBy])
 }
 
 model ShipmentDocument {
-  id          String   @id @default(uuid())
+  id          String        @id @default(uuid())
   shipmentId  String
-  shipment    Shipment @relation(fields: [shipmentId], references: [id])
+  docType     DocumentType
   url         String
-  uploadedAt  DateTime @default(now())
+  uploadedAt  DateTime      @default(now())
+  
+  shipment    Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  
+  @@index([shipmentId])
+}
+
+model ShipmentStatusHistory {
+  id          String        @id @default(uuid())
+  shipmentId  String
+  status      ShipmentStatus
+  note        String?
+  updatedBy   String
+  timestamp   DateTime      @default(now())
+  
+  shipment    Shipment      @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  updatedByUser User        @relation(fields: [updatedBy], references: [id])
+  
+  @@index([shipmentId])
+  @@index([timestamp])
 }
 
 model TrackingEvent {
-  id         String   @id @default(cuid())
-  shipmentId String
-  status     String
-  location   String?
-  note       String?
-  timestamp  DateTime @default(now())
+  id          String   @id @default(cuid())
+  shipmentId  String
+  status      String
+  location    String?
+  note        String?
+  timestamp   DateTime @default(now())
 
-  shipment Shipment @relation(fields: [shipmentId], references: [id])
+  shipment    Shipment @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
 
   @@index([shipmentId])
 }
 
 model Notification {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   userId      String
-  title       String
   message     String
-  data        Json?
-  isRead      Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  type        NotificationType
+  read        Boolean          @default(false)
+  createdAt   DateTime         @default(now())
 
-  user        User     @relation(fields: [userId], references: [id])
+  user        User             @relation(fields: [userId], references: [id])
+  
+  @@index([userId, read])
 }

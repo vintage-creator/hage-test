@@ -1,5 +1,5 @@
 // src/modules/shipments/shipments.controller.ts
-import { Controller, Post, Body, Get, Param, Patch, Delete, UseGuards, UseInterceptors, UploadedFiles, Req } from "@nestjs/common";
+import { Controller, Post, Body, Get, Param, Patch, Delete, UseGuards, UseInterceptors, UploadedFiles, Req, Query } from "@nestjs/common";
 import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody } from "@nestjs/swagger";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
@@ -7,6 +7,11 @@ import { ShipmentsService } from "./shipments.service";
 import { CreateShipmentDto } from "./dto/create-shipment.dto";
 import { UpdateShipmentDto } from "./dto/update-shipment.dto";
 import { Request } from "express";
+import { AssignShipmentDto } from "./dto/assign-shipment.dto";
+import { FilterShipmentDto } from "./dto/filter-shipment.dto";
+import { UpdateStatusDto } from "./dto/update-status.dto";
+import { RolesGuard } from "../../common/guards/roles.guard";
+import { Roles } from "../../common/decorators/roles.decorator";
 
 @ApiTags("shipments")
 @Controller("shipments")
@@ -15,60 +20,12 @@ export class ShipmentsController {
 
 	// Protected: Create shipment with file upload (documents)
 	@Post()
-	@UseGuards(JwtAuthGuard)
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles("LOGISTIC_SERVICE_PROVIDER", "ENTERPRISE", "DISTRIBUTOR")
 	@ApiBearerAuth("access-token")
 	@ApiConsumes("multipart/form-data")
 	@UseInterceptors(FilesInterceptor("documents"))
-	@ApiBody({
-		description: "Create a new shipment with optional document uploads",
-		schema: {
-			type: "object",
-			properties: {
-				// Tracking
-				trackingNumber: { type: "string", example: "HAGE-20251016-8F4C2D" },
-				status: { type: "string", example: "pending" },
-
-				// Customer
-				customerId: { type: "string", example: "clu9f0b8b0000s8yz1hf9d7re" },
-				client: { type: "string", example: "Global Imports Ltd." },
-				email: { type: "string", example: "customer@example.com" },
-
-				// Payment
-				payment: { type: "number", example: 2500 },
-
-				// ORIGIN DETAILS
-				originCountry: { type: "string", example: "Nigeria" },
-				originState: { type: "string", example: "Lagos" },
-				originAddress: { type: "string", example: "123 Broad Street, Marina" },
-				originPhone: { type: "string", example: "+234 812 456 7890" },
-
-				// DESTINATION DETAILS
-				destinationCountry: { type: "string", example: "United Kingdom" },
-				destinationState: { type: "string", example: "London" },
-				destinationAddress: { type: "string", example: "221B Baker Street" },
-				destinationPhone: { type: "string", example: "+44 7700 900123" },
-
-				// SHIPMENT DETAILS
-				cargoType: { type: "string", example: "Electronics" },
-				weight: { type: "string", example: "500KG" },
-				tons: { type: "number", example: 0.5 },
-				serviceLevel: { type: "string", example: "Express" },
-
-				// Dates
-				pickupDate: { type: "string", format: "date", example: "2025-07-15" },
-				deliveryDate: { type: "string", format: "date", example: "2025-07-20" },
-
-				// Document upload
-				documents: {
-					type: "array",
-					items: { type: "string", format: "binary" },
-					example: ["invoice.pdf", "bill_of_lading.pdf"],
-				},
-			},
-			required: ["originCountry", "originState", "originAddress", "destinationCountry", "destinationState", "destinationAddress"],
-		},
-	})
-	create(@Body() dto: CreateShipmentDto, @Req() req: Request, @UploadedFiles() files: Express.Multer.File[]) {
+	create(@Body() dto: any, @Req() req: Request, @UploadedFiles() files: Express.Multer.File[]) {
 		// use the authenticated user's ID from token
 		const userId = (req.user as any)?.id;
 		return this.svc.create(dto, userId, files);
@@ -78,16 +35,51 @@ export class ShipmentsController {
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth("access-token")
 	generateTracking() {
-		return { trackingNumber: this.svc.generateTrackingNumber() };
+		return { trackingNumber: this.svc.generateOrderTrackingId() };
+	}
+
+	// ACCEPT & ASSIGN SHIPMENT
+	@Patch(":id/assign")
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles("LOGISTIC_SERVICE_PROVIDER", "CROSS_BORDER_LOGISTICS") // Only LSP can assign
+	@ApiBearerAuth("access-token")
+	async acceptAndAssign(@Param("id") shipmentId: string, @Body() dto: AssignShipmentDto, @Req() req: Request) {
+		const userId = (req.user as any)?.id;
+		return this.svc.acceptAndAssign(shipmentId, dto, userId);
 	}
 
 	// Public: List all shipments
 	@Get()
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth("access-token")
-	findAll(@Req() req: Request) {
-		const userId = (req.user as any).id;
-		return this.svc.findAllForUser(userId);
+	async findAll(@Query() filters: FilterShipmentDto, @Req() req: any) {
+		return this.svc.findAll(filters, req.user.id);
+	}
+
+	// GET /shipments/my/assigned - For transporters
+	@Get("my/assigned")
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles("TRANSPORTER")
+	@ApiBearerAuth("access-token")
+	async getMyAssignedShipments(@Query() filters: FilterShipmentDto, @Req() req: any) {
+		return this.svc.findAllForTransporter(req.user.id, filters);
+	}
+
+	// GET /shipments/my/created - For customers
+	@Get("my/created")
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth("access-token")
+	async getMyCreatedShipments(@Query() filters: FilterShipmentDto, @Req() req: any) {
+		return this.svc.findAllForCustomer(req.user.id, filters);
+	}
+
+	// GET /shipments/admin/all - Explicit LSP endpoint
+	@Get("admin/all")
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles("LOGISTIC_SERVICE_PROVIDER")
+	@ApiBearerAuth("access-token")
+	async getAllShipmentsAdmin(@Query() filters: FilterShipmentDto, @Req() req: any) {
+		return this.svc.findAllForLSP(req.user.id, filters);
 	}
 
 	@Get(":id")
@@ -95,15 +87,24 @@ export class ShipmentsController {
 	@ApiBearerAuth("access-token")
 	findOne(@Param("id") id: string, @Req() req: Request) {
 		const userId = (req.user as any).id;
-		return this.svc.findOneForUser(id, userId);
+		return this.svc.findOne(id, userId);
+	}
+
+	@Get("track/:orderId")
+	@UseGuards(JwtAuthGuard)
+	@ApiBearerAuth("access-token")
+	async trackByOrderId(@Param("orderId") orderId: string, @Req() req: Request) {
+		const userId = (req.user as any).id;
+		return this.svc.trackByOrderId(orderId, userId);
 	}
 
 	@Patch(":id")
-	@UseGuards(JwtAuthGuard)
+	@UseGuards(JwtAuthGuard, RolesGuard)
+	@Roles("LOGISTIC_SERVICE_PROVIDER", "TRANSPORTER", "LAST_MILE_PROVIDER")
 	@ApiBearerAuth("access-token")
 	update(@Param("id") id: string, @Body() dto: UpdateShipmentDto, @Req() req: Request) {
 		const userId = (req.user as any).id;
-		return this.svc.updateForUser(id, dto, userId);
+		return this.svc.update(id, dto, userId);
 	}
 
 	@Delete(":id")
@@ -111,7 +112,7 @@ export class ShipmentsController {
 	@ApiBearerAuth("access-token")
 	remove(@Param("id") id: string, @Req() req: Request) {
 		const userId = (req.user as any).id;
-		return this.svc.removeForUser(id, userId);
+		return this.svc.remove(id, userId);
 	}
 
 	@Patch(":id/status")
@@ -137,8 +138,8 @@ export class ShipmentsController {
 			required: ["status"],
 		},
 	})
-	updateStatus(@Param("id") id: string, @Body() body: { status: string; note?: string }, @Req() req: Request) {
+	async updateStatus(@Param("id") shipmentId: string, @Body() dto: UpdateStatusDto, @Req() req: Request) {
 		const userId = (req.user as any).id;
-		return this.svc.updateStatus(id, body.status, body.note, userId);
+		return this.svc.updateStatus(shipmentId, dto, userId);
 	}
 }

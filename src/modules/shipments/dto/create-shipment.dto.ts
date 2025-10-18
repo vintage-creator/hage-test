@@ -1,117 +1,107 @@
-// src/modules/shipments/dto/create-shipment.dto.ts
-import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsString, IsEmail, IsOptional, IsNotEmpty, IsNumber, IsEnum, IsObject, Min, ValidateNested } from "class-validator";
 import { Type } from "class-transformer";
-import { IsString, IsOptional, IsDateString, IsNumber, IsEmail, IsNotEmpty } from "class-validator";
+
+export enum PickupMode {
+	PICKUP = "PICKUP",
+	DROPOFF = "DROPOFF",
+}
+
+export enum ServiceType {
+	AIR = "AIR",
+	OCEAN = "OCEAN",
+	ROAD = "ROAD",
+	RAIL = "RAIL",
+}
+
+class LocationDto {
+	@IsString({ message: "Country must be a string" })
+	@IsNotEmpty({ message: "Country is required" })
+	country!: string;
+
+	@IsString({ message: "State must be a string" })
+	@IsNotEmpty({ message: "State is required" })
+	state!: string;
+
+	@IsString({ message: "Address must be a string" })
+	@IsNotEmpty({ message: "Address is required" })
+	address!: string;
+}
 
 export class CreateShipmentDto {
-	// Tracking number (optional if auto-generated)
-	@ApiPropertyOptional({ example: "HAGE-20251016-8F4C2D" })
+	// CLIENT DETAILS
+	@IsString({ message: "Client name must be a string" })
+	@IsNotEmpty({ message: "Client name is required" })
+	clientName!: string;
+
+	@IsEmail({}, { message: "Please provide a valid email address" })
 	@IsOptional()
-	@IsString()
-	trackingNumber!: string;
-
-	// ORIGIN
-	@ApiProperty({ example: "Nigeria" })
-	@IsString()
-	@IsNotEmpty()
-	originCountry!: string;
-
-	@ApiProperty({ example: "Lagos" })
-	@IsString()
-	@IsNotEmpty()
-	originState!: string;
-
-	@ApiProperty({ example: "123, Broad Street, Marina" })
-	@IsString()
-	@IsNotEmpty()
-	originAddress!: string;
-
-	@ApiPropertyOptional({ example: "+234 812 456 7890" })
-	@IsOptional()
-	@IsString()
-	originPhone?: string;
-
-	// DESTINATION
-	@ApiProperty({ example: "Ghana" })
-	@IsString()
-	@IsNotEmpty()
-	destinationCountry!: string;
-
-	@ApiProperty({ example: "Accra" })
-	@IsString()
-	@IsNotEmpty()
-	destinationState!: string;
-
-	@ApiProperty({ example: "15 Independence Ave, Accra" })
-	@IsString()
-	@IsNotEmpty()
-	destinationAddress!: string;
-
-	@ApiPropertyOptional({ example: "+233 501 123 4567" })
-	@IsOptional()
-	@IsString()
-	destinationPhone?: string;
-
-	// SHIPMENT DETAILS
-	@ApiPropertyOptional({ example: "pending" })
-	@IsOptional()
-	@IsString()
-	status?: string;
-
-	@ApiProperty()
-	@IsString()
-	// @IsNotEmpty()
-	customerId!: string;
-
-	@ApiPropertyOptional({ example: 2500 })
-	@IsOptional()
-	@Type(() => Number)
-	@IsNumber()
-	payment?: number;
-
-	@ApiPropertyOptional({ example: "Global Imports Ltd." })
-	@IsOptional()
-	@IsString()
-	client?: string;
-
-	@ApiPropertyOptional({ example: "customer@example.com" })
-	@IsOptional()
-	@IsEmail()
 	email?: string;
 
-	@ApiPropertyOptional({ example: "Electronics" })
+	@IsString({ message: "Phone number must be a string" })
 	@IsOptional()
-	@IsString()
-	cargoType?: string;
+	phone?: string;
 
-	@ApiPropertyOptional({ example: "500KG" })
-	@IsOptional()
-	@IsString()
-	weight?: string;
+	// CARGO DETAILS
+	@IsString({ message: "Cargo type must be a string" })
+	@IsNotEmpty({ message: "Cargo type is required" })
+	cargoType!: string;
 
-	@ApiPropertyOptional({ example: 50 })
 	@IsOptional()
 	@Type(() => Number)
-	@IsNumber()
+	@IsNumber({}, { message: "Tons must be a valid number" })
 	tons?: number;
 
-	@ApiPropertyOptional({ example: "2025-07-15" })
-	@IsOptional()
-	@IsDateString()
-	pickupDate?: string;
+	@IsNumber({}, { message: "Weight must be a valid number" })
+	@Min(0.1, { message: "Weight must be greater than 0" })
+	@Type(() => Number)
+	weight!: number;
 
-	@ApiPropertyOptional({ example: "2025-10-03" })
+	@IsString({ message: "Handling instructions must be a string" })
 	@IsOptional()
-	@IsDateString()
-	deliveryDate?: string;
+	handlingInstructions?: string;
 
-	@ApiPropertyOptional({ example: "Express" })
-	@IsOptional()
-	@IsString()
-	serviceLevel?: string;
+	// ORIGIN & DESTINATION
+	@ValidateNested({ message: "Origin must be a valid location object" })
+	@Type(() => LocationDto)
+	@IsNotEmpty({ message: "Origin is required" })
+	origin!: LocationDto;
 
-	@ApiPropertyOptional({ example: "https://files.company.com/docs/invoice.pdf" })
+	@ValidateNested({ message: "Destination must be a valid location object" })
+	@Type(() => LocationDto)
+	@IsNotEmpty({ message: "Destination is required" })
+	destination!: LocationDto;
+
+	// PICKUP & DELIVERY
+	@IsEnum(PickupMode, { message: "Pickup mode must be either PICKUP or DROPOFF" })
+	@IsNotEmpty({ message: "Pickup mode is required" })
+	pickupMode!: PickupMode;
+
 	@IsOptional()
-	@IsString()
-	documentUrl?: string;
+	pickupDate?: string; // ISO string
+
+	@IsOptional()
+	deliveryDate?: string; // ISO string
+
+	// SERVICE & PRICING
+	@IsEnum(ServiceType, {
+		message: "Service type must be one of: AIR, OCEAN, ROAD, or RAIL",
+	})
+	@IsNotEmpty({ message: "Service type is required" })
+	serviceType!: ServiceType;
+
+	@IsNumber({}, { message: "Base freight must be a valid number" })
+	@Min(0, { message: "Base freight cannot be negative" })
+	@Type(() => Number)
+	baseFrieght!: number;
+
+	@IsNumber({}, { message: "Handling fee must be a valid number" })
+	@Min(0, { message: "Handling fee cannot be negative" })
+	@Type(() => Number)
+	handlingFee!: number;
+
+	@IsNumber({}, { message: "Insurance fee must be a valid number" })
+	@Min(0, { message: "Insurance fee cannot be negative" })
+	@Type(() => Number)
+	@IsOptional()
+	insuranceFee?: number;
 }
