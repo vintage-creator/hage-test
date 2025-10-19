@@ -2,7 +2,13 @@
   <mj-head>
     <mj-attributes>
       <mj-all font-family="Helvetica, Arial, sans-serif" />
-      <mj-class name="btn" background-color="#2563EB" color="#ffffff" border-radius="6px" padding="12px 24px" />
+      <mj-class
+        name="btn"
+        background-color="#2563EB"
+        color="#ffffff"
+        border-radius="6px"
+        padding="12px 24px"
+      />
     </mj-attributes>
 
     <mj-preview>Your shipment has been created successfully!</mj-preview>
@@ -10,27 +16,22 @@
 
   <mj-body background-color="#F5F7FA">
     <!-- Logo Section -->
-    <mj-section padding="20px 0">
-      <mj-column width="33.33%" padding="0"></mj-column>
-
+    <mj-section padding="20px 24px 0 24px">
       <mj-column
-        width="120px"
         background-color="#050301"
         border-radius="10px"
         vertical-align="middle"
-        padding="6px"
+        padding="0"
+        align="center"
       >
         <mj-image
           width="80px"
           src="{{logoUrl}}"
           alt="{{appName}}"
-          padding="0"
-          align="center"
+          padding="6px 8px"
           border-radius="6px"
         />
       </mj-column>
-
-      <mj-column width="33.33%" padding="0"></mj-column>
     </mj-section>
 
     <!-- Content Section -->
@@ -40,12 +41,23 @@
           Shipment Created Successfully 🚚
         </mj-text>
 
-        <mj-text font-size="16px" color="#374151" padding-top="8px" line-height="1.6">
+        <mj-text
+          font-size="16px"
+          color="#374151"
+          padding-top="8px"
+          line-height="1.6"
+        >
           Hi {{clientName}}, <br />
-          Your shipment has been successfully created. Below are the details of your order:
+          Your shipment has been successfully created. Below are the details of
+          your order:
         </mj-text>
 
-        <mj-text font-size="15px" color="#111827" padding-top="12px" line-height="1.8">
+        <mj-text
+          font-size="15px"
+          color="#111827"
+          padding-top="12px"
+          line-height="1.8"
+        >
           <strong>Tracking Number:</strong> {{trackingNumber}} <br />
           <strong>Origin:</strong> {{origin}} <br />
           <strong>Destination:</strong> {{destination}} <br />
