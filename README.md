@@ -30,9 +30,9 @@ HageMVP-Backend/
 │ │ └─ pipes/
 │ ├─ modules/
 │ │ ├─ auth/
-│ │ ├─ users/
+│ │ ├─ warehouses/
 │ │ ├─ shipments/
-│ │ └─ tracking/
+│ │ └─ inventory/
 │ ├─ prisma/
 │ │ └─ prisma.service.ts
 │ ├─ shared/

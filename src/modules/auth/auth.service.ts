@@ -1,5 +1,11 @@
 // src/modules/auth/auth.service.ts
-import { Inject, Injectable, BadRequestException, UnauthorizedException, Logger } from "@nestjs/common";
+import {
+  Inject,
+  Injectable,
+  BadRequestException,
+  UnauthorizedException,
+  Logger,
+} from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import TokenService from "./token.service";
 import UrlService from "./url.service";
@@ -14,283 +20,440 @@ import { MailService } from "../../common/mail/mail.service";
 
 @Injectable()
 export class AuthService {
-	private readonly logger = new Logger(AuthService.name);
-	private refreshDays: number;
+  private readonly logger = new Logger(AuthService.name);
+  private refreshDays: number;
 
-	constructor(
-		private readonly prisma: PrismaService,
-		private readonly jwt: JwtService,
-		private readonly cfg: ConfigService,
-		@Inject("StorageService") private readonly storage: StorageService,
-		private readonly mailer: MailService,
-		private readonly tokenService: TokenService,
-		private readonly urlService: UrlService
-	) {
-		this.refreshDays = Number(this.cfg.get("REFRESH_EXPIRES_DAYS") ?? 30);
-	}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+    private readonly cfg: ConfigService,
+    @Inject("StorageService") private readonly storage: StorageService,
+    private readonly mailer: MailService,
+    private readonly tokenService: TokenService,
+    private readonly urlService: UrlService
+  ) {
+    this.refreshDays = Number(this.cfg.get("REFRESH_EXPIRES_DAYS") ?? 30);
+  }
 
-	async registerCompany(dto: any, files: { companyCert?: Express.Multer.File; taxCert?: Express.Multer.File }) {
-		if (!dto.kind) throw new BadRequestException("User kind is required");
-		if (!dto.role) throw new BadRequestException("User role is required");
+  async registerCompany(
+    dto: any,
+    files: { companyCert?: Express.Multer.File; taxCert?: Express.Multer.File }
+  ) {
+    if (!dto.kind) throw new BadRequestException("User kind is required");
+    if (!dto.role) throw new BadRequestException("User role is required");
 
-		// Check for existing user (prevent race as best effort)
-		const existingUser = await this.prisma.user.findUnique({
-			where: { email: dto.emailAddress },
-		});
-		if (existingUser) throw new BadRequestException("Email is already registered");
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.emailAddress },
+    });
+    if (existingUser) {
+      if (!existingUser.isVerified) {
+        const latestToken = await this.prisma.verificationToken.findFirst({
+          where: { userId: existingUser.id },
+          orderBy: { createdAt: "desc" },
+        });
+        if (latestToken) {
+          const msSince =
+            Date.now() - new Date(latestToken.createdAt).getTime();
+          const cooldownMs = 60 * 1000;
+          if (msSince < cooldownMs) {
+            throw new BadRequestException(
+              "Verification email recently sent. Please wait a moment before retrying."
+            );
+          }
+        }
 
-		const uploadPromises = [];
-		if (files.companyCert) uploadPromises.push(this.storage.uploadFile(files.companyCert, { folder: "company-docs" }));
-		if (files.taxCert) uploadPromises.push(this.storage.uploadFile(files.taxCert, { folder: "company-docs" }));
+        await this.tokenService.deleteVerificationTokensByUser(existingUser.id);
+        const tokenRec = await this.tokenService.createVerificationToken(
+          existingUser.id
+        );
+        const verificationUrl = this.urlService.verificationUrl(tokenRec.token);
 
-		const results = await Promise.all(uploadPromises);
+        const emailContext = {
+          fullName: dto.fullName ?? existingUser.email,
+          businessName: dto.businessName ?? "",
+          verificationUrl,
+        };
 
-		try {
-			// create company + user in a transaction
-			const { company, user } = await this.prisma.$transaction(async (tx) => {
-				const newCompany = await tx.company.create({
-					data: {
-						fullName: dto.fullName,
-						phoneNumber: dto.phoneNumber,
-						emailAddress: dto.emailAddress,
-						businessName: dto.businessName,
-						businessAddress: dto.businessAddress,
-						documents: {
-							create: results.map((r, idx) => ({
-								type: idx === 0 ? "COMPANY_REGISTRATION_CERTIFICATE" : "TAX_REGISTRATION_CERTIFICATE",
-								url: r.url,
-							})),
-						},
-					},
-				});
+        try {
+          await this.mailer.sendVerificationEmail(
+            existingUser.email!,
+            emailContext
+          );
+        } catch (emailErr) {
+          try {
+            await this.tokenService.deleteVerificationTokensByUser(
+              existingUser.id
+            );
+          } catch (e) {
+            this.logger.error(
+              "Failed to cleanup token after email send failure: " +
+                ((e as any)?.message ?? e)
+            );
+          }
+          throw new BadRequestException(
+            "Failed to send verification email. Please try again later."
+          );
+        }
 
-				const newUser = await tx.user.create({
-					data: {
-						email: dto.emailAddress,
-						phone: dto.phoneNumber,
-						kind: dto.kind,
-						role: dto.role,
-						companyId: newCompany.id,
-						isVerified: false,
-					},
-				});
+        return {
+          ok: true,
+          message:
+            "Account exists but not verified — verification email resent.",
+        };
+      }
 
-				return {
-					company: newCompany,
-					user: newUser,
-				};
-			});
+      throw new BadRequestException("Email is already registered");
+    }
 
-			const tokenRec = await this.tokenService.createVerificationToken(user.id);
-			const verificationUrl = this.urlService.verificationUrl(tokenRec.token);
+    const uploadPromises = [];
+    if (files.companyCert)
+      uploadPromises.push(
+        this.storage.uploadFile(files.companyCert, { folder: "company-docs" })
+      );
+    if (files.taxCert)
+      uploadPromises.push(
+        this.storage.uploadFile(files.taxCert, { folder: "company-docs" })
+      );
 
-			const emailContext = {
-				fullName: dto.fullName,
-				businessName: dto.businessName,
-				verificationUrl,
-			};
+    const results = await Promise.all(uploadPromises);
 
-			try {
-				await this.mailer.sendVerificationEmail(user.email!, emailContext);
-			} catch (emailErr) {
-				// try cleanup if email fails
-				try {
-					await this.prisma.$transaction([
-						this.prisma.verificationToken.deleteMany({
-							where: { userId: user.id },
-						}),
-						this.prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
-						this.prisma.passwordResetToken.deleteMany({
-							where: { userId: user.id },
-						}),
-						this.prisma.user.delete({ where: { id: user.id } }),
-						this.prisma.company.delete({ where: { id: company.id } }),
-					]);
-				} catch (cleanupErr) {
-					this.logger.error("Failed to cleanup after email send failure: " + ((cleanupErr as any)?.message ?? String(cleanupErr)));
-				}
+    try {
+      const { company, user } = await this.prisma.$transaction(async (tx) => {
+        const newCompany = await tx.company.create({
+          data: {
+            fullName: dto.fullName,
+            phoneNumber: dto.phoneNumber,
+            emailAddress: dto.emailAddress,
+            businessName: dto.businessName,
+            businessAddress: dto.businessAddress,
+            documents: {
+              create: results.map((r, idx) => ({
+                type:
+                  idx === 0
+                    ? "COMPANY_REGISTRATION_CERTIFICATE"
+                    : "TAX_REGISTRATION_CERTIFICATE",
+                url: r.url,
+              })),
+            },
+          },
+        });
 
-				throw new BadRequestException("Failed to send verification email. Please try again.");
-			}
+        const newUser = await tx.user.create({
+          data: {
+            email: dto.emailAddress,
+            phone: dto.phoneNumber,
+            kind: dto.kind,
+            role: dto.role,
+            companyId: newCompany.id,
+            isVerified: false,
+          },
+        });
 
-			return { ok: true };
-		} catch (err: any) {
-			if (err?.code === "P2002") {
-				throw new BadRequestException("Email or phone already registered");
-			}
-			throw new BadRequestException(err.message || "Registration failed");
-		}
-	}
+        return {
+          company: newCompany,
+          user: newUser,
+        };
+      });
 
-	async verifyEmail(token: string) {
-		const rec = await this.tokenService.findVerificationToken(token);
+      const tokenRec = await this.tokenService.createVerificationToken(user.id);
+      const verificationUrl = this.urlService.verificationUrl(tokenRec.token);
 
-		if (!rec || rec.expiresAt < new Date()) {
-			throw new BadRequestException("Invalid or expired token");
-		}
+      const emailContext = {
+        fullName: dto.fullName,
+        businessName: dto.businessName,
+        verificationUrl,
+      };
 
-		return {
-			ok: true,
-			email: rec.user?.email ?? null,
-			companyId: rec.user?.companyId ?? null,
-			expiresAt: rec.expiresAt,
-			token: rec.token,
-		};
-	}
-	async verifyResetToken(token: string) {
-		if (!token) throw new BadRequestException("Missing token");
+      try {
+        await this.mailer.sendVerificationEmail(user.email!, emailContext);
+      } catch (emailErr) {
+        try {
+          await this.prisma.$transaction([
+            this.prisma.verificationToken.deleteMany({
+              where: { userId: user.id },
+            }),
+            this.prisma.refreshToken.deleteMany({ where: { userId: user.id } }),
+            this.prisma.passwordResetToken.deleteMany({
+              where: { userId: user.id },
+            }),
+            this.prisma.user.delete({ where: { id: user.id } }),
+            this.prisma.company.delete({ where: { id: company.id } }),
+          ]);
+        } catch (cleanupErr) {
+          this.logger.error(
+            "Failed to cleanup after email send failure: " +
+              ((cleanupErr as any)?.message ?? String(cleanupErr))
+          );
+        }
 
-		// reuse tokenService (or prisma) to find reset token
-		const rec = await this.tokenService.findPasswordResetToken(token);
-		if (!rec || rec.used || rec.expiresAt < new Date()) {
-			throw new BadRequestException("Invalid or expired token");
-		}
+        throw new BadRequestException(
+          "Failed to send verification email. Please try again."
+        );
+      }
 
-		return {
-			ok: true,
-			expiresAt: rec.expiresAt,
-			token: rec.token,
-		};
-	}
+      return { ok: true };
+    } catch (err: any) {
+      if (err?.code === "P2002") {
+        throw new BadRequestException("Email or phone already registered");
+      }
+      throw new BadRequestException(err.message || "Registration failed");
+    }
+  }
 
-	async setPassword(verificationToken: string, password: string, retype: string) {
-		if (password !== retype) throw new BadRequestException("Passwords do not match");
-		if (!isStrongPassword(password)) throw new BadRequestException("Password is not strong enough");
+  async verifyEmail(token: string) {
+    const rec = await this.tokenService.findVerificationToken(token);
 
-		const rec = await this.tokenService.findVerificationToken(verificationToken);
-		if (!rec || rec.expiresAt < new Date()) throw new BadRequestException("Invalid or expired token");
+    if (!rec || rec.expiresAt < new Date()) {
+      throw new BadRequestException("Invalid or expired token");
+    }
 
-		const hashed = await bcrypt.hash(password, 10);
+    return {
+      ok: true,
+      email: rec.user?.email ?? null,
+      companyId: rec.user?.companyId ?? null,
+      expiresAt: rec.expiresAt,
+      token: rec.token,
+    };
+  }
+  async verifyResetToken(token: string) {
+    if (!token) throw new BadRequestException("Missing token");
 
-		await this.prisma.$transaction([
-			this.prisma.user.update({
-				where: { id: rec.userId },
-				data: { password: hashed, isVerified: true },
-			}),
-			this.prisma.verificationToken.delete({ where: { id: rec.id } }),
-		]);
+    const rec = await this.tokenService.findPasswordResetToken(token);
+    if (!rec || rec.used || rec.expiresAt < new Date()) {
+      throw new BadRequestException("Invalid or expired token");
+    }
 
-		return { ok: true };
-	}
+    return {
+      ok: true,
+      expiresAt: rec.expiresAt,
+      token: rec.token,
+    };
+  }
 
-	private signAccessToken(payload: any) {
-		const secret = this.cfg.get("JWT_SECRET");
-		const expiresIn = this.cfg.get("JWT_EXPIRES_IN") ?? "15m";
-		return this.jwt.sign(payload, { secret, expiresIn });
-	}
+  async setPassword(
+    verificationToken: string,
+    password: string,
+    retype: string
+  ) {
+    if (password !== retype)
+      throw new BadRequestException("Passwords do not match");
+    if (!isStrongPassword(password))
+      throw new BadRequestException("Password is not strong enough");
 
-	private createRefreshTokenRaw() {
-		return randomBytes(48).toString("hex");
-	}
+    const rec = await this.tokenService.findVerificationToken(
+      verificationToken
+    );
+    if (!rec || rec.expiresAt < new Date())
+      throw new BadRequestException("Invalid or expired token");
 
-	private hashToken(token: string) {
-		return createHash("sha256").update(token).digest("hex");
-	}
+    const hashed = await bcrypt.hash(password, 10);
 
-	async login(identifier: string, password: string) {
-		const user = await this.prisma.user.findFirst({
-			where: { OR: [{ email: identifier }, { phone: identifier }] },
-		});
-		if (!user || !user.password) throw new UnauthorizedException("Invalid credentials");
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: rec.userId },
+        data: { password: hashed, isVerified: true },
+      }),
+      this.prisma.verificationToken.delete({ where: { id: rec.id } }),
+    ]);
 
-		const ok = await bcrypt.compare(password, user.password);
-		if (!ok) throw new UnauthorizedException("Invalid credentials");
-		if (!user.isVerified) throw new UnauthorizedException("Email not verified");
+    return { ok: true };
+  }
 
-		const payload = {
-			sub: user.id,
-			email: user.email,
-			role: user.role,
-			kind: user.kind,
-		};
-		const accessToken = this.signAccessToken(payload);
+  private signAccessToken(payload: any) {
+    const secret = this.cfg.get("JWT_SECRET");
+    const expiresIn = this.cfg.get("JWT_EXPIRES_IN") ?? "15m";
+    return this.jwt.sign(payload, { secret, expiresIn });
+  }
 
-		const rawRefresh = this.createRefreshTokenRaw();
-		const tokenHash = this.hashToken(rawRefresh);
-		const expiresAt = add(new Date(), { days: this.refreshDays });
+  private createRefreshTokenRaw() {
+    return randomBytes(48).toString("hex");
+  }
 
-		await this.prisma.refreshToken.create({
-			data: {
-				userId: user.id,
-				tokenHash,
-				userAgent: null,
-				expiresAt,
-			},
-		});
+  private hashToken(token: string) {
+    return createHash("sha256").update(token).digest("hex");
+  }
 
-		return {
-			accessToken,
-			refreshToken: rawRefresh,
-			user: {
-				id: user.id,
-				email: user.email,
-				phone: user.phone,
-				role: user.role,
-			},
-		};
-	}
+  async login(identifier: string, password: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { OR: [{ email: identifier }, { phone: identifier }] },
+    });
+    if (!user || !user.password)
+      throw new UnauthorizedException("Invalid credentials");
 
-	async logout(input: { userId?: string | null; refreshToken?: string; refreshTokenId?: string }) {
-		try {
-			if (input.refreshToken) {
-				const tokenHash = this.hashToken(input.refreshToken);
-				await this.prisma.refreshToken.deleteMany({ where: { tokenHash } });
-			}
-			if (input.refreshTokenId) {
-				await this.prisma.refreshToken.deleteMany({
-					where: { id: input.refreshTokenId },
-				});
-			}
-			if (input.userId) {
-				await this.prisma.refreshToken.deleteMany({
-					where: { userId: input.userId },
-				});
-			}
-		} catch (err) {
-			this.logger.error("Logout error (ignored): " + ((err as any)?.message ?? String(err)));
-		}
-	}
+    const ok = await bcrypt.compare(password, user.password);
+    if (!ok) throw new UnauthorizedException("Invalid credentials");
+    if (!user.isVerified) throw new UnauthorizedException("Email not verified");
 
-	async requestPasswordReset(email: string) {
-		const genericResp = {
-			ok: true,
-			message: "If an account with that email exists, a reset email has been sent.",
-		};
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      kind: user.kind,
+    };
+    const accessToken = this.signAccessToken(payload);
 
-		const user = await this.prisma.user.findUnique({ where: { email } });
-		if (!user) return genericResp;
+    const rawRefresh = this.createRefreshTokenRaw();
+    const tokenHash = this.hashToken(rawRefresh);
+    const expiresAt = add(new Date(), { days: this.refreshDays });
 
-		const tokenRec = await this.tokenService.createPasswordResetToken(user.id);
-		const resetUrl = this.urlService.resetUrl(tokenRec.token);
+    await this.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash,
+        userAgent: null,
+        expiresAt,
+      },
+    });
 
-		const emailContext = {
-			email: user.email,
-			resetUrl,
-		};
+    return {
+      accessToken,
+      refreshToken: rawRefresh,
+      user: {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+      },
+    };
+  }
 
-		try {
-			await this.mailer.sendResetPasswordEmail(user.email!, emailContext);
-		} catch (error) {
-			await this.tokenService.deletePasswordResetToken(tokenRec.id);
-			this.logger.error("Failed to send reset email:", (error as any)?.message ?? error);
-		}
+  async logout(input: {
+    userId?: string | null;
+    refreshToken?: string;
+    refreshTokenId?: string;
+  }) {
+    try {
+      if (input.refreshToken) {
+        const tokenHash = this.hashToken(input.refreshToken);
+        await this.prisma.refreshToken.deleteMany({ where: { tokenHash } });
+      }
+      if (input.refreshTokenId) {
+        await this.prisma.refreshToken.deleteMany({
+          where: { id: input.refreshTokenId },
+        });
+      }
+      if (input.userId) {
+        await this.prisma.refreshToken.deleteMany({
+          where: { userId: input.userId },
+        });
+      }
+    } catch (err) {
+      this.logger.error(
+        "Logout error (ignored): " + ((err as any)?.message ?? String(err))
+      );
+    }
+  }
 
-		return genericResp;
-	}
+  async requestPasswordReset(email: string) {
+    const genericResp = {
+      ok: true,
+      message:
+        "If an account with that email exists, a reset email has been sent.",
+    };
 
-	async resetPassword(token: string, password: string, retype: string) {
-		if (password !== retype) throw new BadRequestException("Passwords do not match");
-		if (!isStrongPassword(password)) throw new BadRequestException("Password is not strong enough");
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) return genericResp;
 
-		const rec = await this.tokenService.findPasswordResetToken(token);
-		if (!rec || rec.used || rec.expiresAt < new Date()) throw new BadRequestException("Invalid or expired token");
+    const tokenRec = await this.tokenService.createPasswordResetToken(user.id);
+    const resetUrl = this.urlService.resetUrl(tokenRec.token);
 
-		const hashed = await bcrypt.hash(password, 10);
-		await this.prisma.user.update({
-			where: { id: rec.userId },
-			data: { password: hashed },
-		});
-		await this.tokenService.markPasswordTokenUsed(rec.id);
-		return { ok: true };
-	}
+    const emailContext = {
+      email: user.email,
+      resetUrl,
+    };
+
+    try {
+      await this.mailer.sendResetPasswordEmail(user.email!, emailContext);
+    } catch (error) {
+      await this.tokenService.deletePasswordResetToken(tokenRec.id);
+      this.logger.error(
+        "Failed to send reset email:",
+        (error as any)?.message ?? error
+      );
+    }
+
+    return genericResp;
+  }
+
+  async resendVerificationEmail(email: string) {
+    if (!email) throw new BadRequestException("Missing email");
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { company: true },
+    });
+
+    if (!user) return { ok: true };
+
+    if (user.isVerified) {
+      return { ok: true, message: "Email already verified" };
+    }
+
+    // simple cooldown to avoid spamming the mailer
+    const latestToken = await this.prisma.verificationToken.findFirst({
+      where: { userId: user.id },
+      orderBy: { createdAt: "desc" },
+    });
+    if (latestToken) {
+      const msSince = Date.now() - new Date(latestToken.createdAt).getTime();
+      const cooldownMs = 60 * 1000;
+      if (msSince < cooldownMs) {
+        throw new BadRequestException(
+          "Verification email recently sent. Please wait a moment before retrying."
+        );
+      }
+    }
+
+    await this.tokenService.deleteVerificationTokensByUser(user.id);
+
+    const tokenRec = await this.tokenService.createVerificationToken(user.id);
+    const verificationUrl = this.urlService.verificationUrl(tokenRec.token);
+
+    const emailContext = {
+      fullName: (user.company && (user.company as any).fullName) ?? user.email,
+      businessName: (user.company && (user.company as any).businessName) ?? "",
+      verificationUrl,
+    };
+
+    try {
+      await this.mailer.sendVerificationEmail(user.email!, emailContext);
+    } catch (err) {
+      try {
+        await this.tokenService.deleteVerificationTokensByUser(user.id);
+      } catch (cleanupErr) {
+        this.logger.error(
+          "Failed to cleanup token after resend email failure: " +
+            ((cleanupErr as any)?.message ?? String(cleanupErr))
+        );
+      }
+      this.logger.error(
+        "Failed to resend verification email: " +
+          ((err as any)?.message ?? String(err))
+      );
+      throw new BadRequestException(
+        "Failed to send verification email. Please try again later."
+      );
+    }
+
+    return { ok: true, message: "Verification email resent" };
+  }
+
+  async resetPassword(token: string, password: string, retype: string) {
+    if (password !== retype)
+      throw new BadRequestException("Passwords do not match");
+    if (!isStrongPassword(password))
+      throw new BadRequestException("Password is not strong enough");
+
+    const rec = await this.tokenService.findPasswordResetToken(token);
+    if (!rec || rec.used || rec.expiresAt < new Date())
+      throw new BadRequestException("Invalid or expired token");
+
+    const hashed = await bcrypt.hash(password, 10);
+    await this.prisma.user.update({
+      where: { id: rec.userId },
+      data: { password: hashed },
+    });
+    await this.tokenService.markPasswordTokenUsed(rec.id);
+    return { ok: true };
+  }
 }

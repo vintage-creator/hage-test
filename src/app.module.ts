@@ -5,18 +5,21 @@ import { PrismaModule } from "./prisma/prisma.module";
 
 // Feature modules
 import { AuthModule } from "./modules/auth/auth.module";
-//import { UsersModule } from "./modules/users/users.module";
 import { ShipmentsModule } from "./modules/shipments/shipments.module";
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { WarehousesModule } from "./modules/warehouses/warehouses.module";
+import { InventoryModule } from "./modules/inventory/inventory.module";
+
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,
-    //UsersModule,
     ShipmentsModule,
     NotificationsModule,
+    WarehousesModule,
+    InventoryModule
   ],
   controllers: [],
   providers: [],

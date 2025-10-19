@@ -9,7 +9,7 @@
       "esModuleInterop": true,
       "skipLibCheck": true
     },
-    "include": ["src/**/*"],
+    "include": ["src/**/*", "test/e2e/utils/shipment.e2e-spec.ts"],
     "exclude": ["node_modules", "dist"]
   }
   
