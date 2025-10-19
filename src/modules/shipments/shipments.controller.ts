@@ -1,6 +1,6 @@
 // src/modules/shipments/shipments.controller.ts
 import { Controller, Post, Body, Get, Param, Patch, Delete, UseGuards, UseInterceptors, UploadedFiles, Req, Query } from "@nestjs/common";
-import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiTags, ApiConsumes, ApiBody, ApiResponse, ApiQuery, ApiParam } from "@nestjs/swagger";
 import { FilesInterceptor } from "@nestjs/platform-express";
 import { JwtAuthGuard } from "../../common/guards/jwt-auth.guard";
 import { ShipmentsService } from "./shipments.service";
@@ -25,6 +25,56 @@ export class ShipmentsController {
 	@ApiBearerAuth("access-token")
 	@ApiConsumes("multipart/form-data")
 	@UseInterceptors(FilesInterceptor("documents"))
+	@ApiBody({
+		description: "Create a new shipment record",
+		type: CreateShipmentDto,
+		examples: {
+			example1: {
+				summary: "Basic Air Freight example",
+				value: {
+					orderId: "SHP-67890",
+					clientName: "Acme Logistics",
+					email: "client@acme.com",
+					phone: "+2348123456789",
+					cargoType: "Electronics",
+					tons: 2,
+					weight: 1200,
+					handlingInstructions: "Handle with care",
+					origin: {
+						country: "Nigeria",
+						state: "Lagos",
+						address: "12 Marina Street",
+					},
+					destination: {
+						country: "Ghana",
+						state: "Accra",
+						address: "45 High Street",
+					},
+					pickupMode: "PICKUP",
+					pickupDate: "2025-10-20T09:00:00Z",
+					deliveryDate: "2025-10-25T15:00:00Z",
+					serviceType: "AIR",
+					baseFrieght: 1200,
+					handlingFee: 100,
+					insuranceFee: 50,
+				},
+			},
+		},
+	})
+	@ApiResponse({
+		status: 201,
+		description: "Shipment successfully created",
+		schema: {
+			example: {
+				id: "clx0a12340000a3l45d8x9e7t",
+				orderId: "SHP-12345",
+				clientName: "Acme Logistics",
+				serviceType: "AIR",
+				status: "PENDING",
+				createdAt: "2025-10-18T18:00:00.000Z",
+			},
+		},
+	})
 	create(@Body() dto: any, @Req() req: Request, @UploadedFiles() files: Express.Multer.File[]) {
 		// use the authenticated user's ID from token
 		const userId = (req.user as any)?.id;
@@ -52,6 +102,33 @@ export class ShipmentsController {
 	@Get()
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth("access-token")
+	@ApiQuery({
+		name: "status",
+		required: false,
+		description: "Filter shipments by status (e.g., PENDING, IN_TRANSIT, DELIVERED)",
+	})
+	@ApiResponse({
+		status: 200,
+		description: "List of all shipments",
+		schema: {
+			example: [
+				{
+					id: "clx0a12340000a3l45d8x9e7t",
+					orderId: "SHP-12345",
+					clientName: "Acme Logistics",
+					serviceType: "AIR",
+					status: "PENDING",
+				},
+				{
+					id: "clx0b56780000b5p67y2z3q9r",
+					orderId: "SHP-67890",
+					clientName: "Global Movers",
+					serviceType: "OCEAN",
+					status: "DELIVERED",
+				},
+			],
+		},
+	})
 	async findAll(@Query() filters: FilterShipmentDto, @Req() req: any) {
 		return this.svc.findAll(filters, req.user.id);
 	}
@@ -85,6 +162,23 @@ export class ShipmentsController {
 	@Get(":id")
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth("access-token")
+	@ApiParam({ name: "id", description: "Shipment ID", example: "clx0a12340000a3l45d8x9e7t" })
+	@ApiResponse({
+		status: 200,
+		description: "Details of a single shipment",
+		schema: {
+			example: {
+				id: "clx0a12340000a3l45d8x9e7t",
+				orderId: "SHP-12345",
+				clientName: "Acme Logistics",
+				cargoType: "Electronics",
+				weight: 1200,
+				serviceType: "AIR",
+				status: "PENDING",
+				createdAt: "2025-10-18T18:00:00.000Z",
+			},
+		},
+	})
 	findOne(@Param("id") id: string, @Req() req: Request) {
 		const userId = (req.user as any).id;
 		return this.svc.findOne(id, userId);
@@ -102,6 +196,20 @@ export class ShipmentsController {
 	@UseGuards(JwtAuthGuard, RolesGuard)
 	@Roles("LOGISTIC_SERVICE_PROVIDER", "TRANSPORTER", "LAST_MILE_PROVIDER")
 	@ApiBearerAuth("access-token")
+	@ApiParam({ name: "id", description: "Shipment ID" })
+	@ApiBody({
+		description: "Update shipment details",
+		schema: {
+			example: {
+				status: "IN_TRANSIT",
+				deliveryDate: "2025-10-22T10:00:00Z",
+			},
+		},
+	})
+	@ApiResponse({
+		status: 200,
+		description: "Shipment updated successfully",
+	})
 	update(@Param("id") id: string, @Body() dto: UpdateShipmentDto, @Req() req: Request) {
 		const userId = (req.user as any).id;
 		return this.svc.update(id, dto, userId);
@@ -110,6 +218,11 @@ export class ShipmentsController {
 	@Delete(":id")
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth("access-token")
+	@ApiParam({ name: "id", description: "Shipment ID" })
+	@ApiResponse({
+		status: 200,
+		description: "Shipment deleted successfully",
+	})
 	remove(@Param("id") id: string, @Req() req: Request) {
 		const userId = (req.user as any).id;
 		return this.svc.remove(id, userId);
@@ -118,26 +231,6 @@ export class ShipmentsController {
 	@Patch(":id/status")
 	@UseGuards(JwtAuthGuard)
 	@ApiBearerAuth("access-token")
-	@ApiBody({
-		description: "Update the status of a shipment",
-		schema: {
-			type: "object",
-			properties: {
-				status: {
-					type: "string",
-					enum: ["pending", "in_transit", "delivered", "cancelled"], // optional enum list
-					example: "in_transit",
-					description: "New shipment status",
-				},
-				note: {
-					type: "string",
-					example: "Package has left the Lagos warehouse",
-					description: "Optional status update note",
-				},
-			},
-			required: ["status"],
-		},
-	})
 	async updateStatus(@Param("id") shipmentId: string, @Body() dto: UpdateStatusDto, @Req() req: Request) {
 		const userId = (req.user as any).id;
 		return this.svc.updateStatus(shipmentId, dto, userId);

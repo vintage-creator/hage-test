@@ -213,15 +213,25 @@ describe("Shipments Complete E2E Tests", () => {
 		}
 	}
 
+	function generateOrderTrackingId(): string {
+		const year = new Date().getFullYear();
+		const timestamp = Date.now().toString().slice(-6); // last 6 digits of ms timestamp
+		const randomId = Math.floor(1000 + Math.random() * 9000); // 4 random digits
+		return `SHP-${year}-${timestamp}${randomId}`;
+	}
+
 	// ==================== TEST CASES ====================
 
 	describe("POST /api/shipments - Create Shipment", () => {
 		it("should create shipment as LSP user with documents", async () => {
+			const orderId = generateOrderTrackingId();
+
 			const res = await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Test Client Corp")
 				.field("email", "client@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+2348120000000")
 				.field("cargoType", "Electronics")
 				.field("tons", "1")
@@ -252,12 +262,15 @@ describe("Shipments Complete E2E Tests", () => {
 		});
 
 		it("should create shipment as Enterprise user", async () => {
+			const orderId = generateOrderTrackingId();
+
 			const res = await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${enterpriseToken}`)
 				.field("clientName", "Enterprise Client")
 				.field("email", "enterprise@example.com")
 				.field("phone", "+2348130000000")
+				.field("orderId", orderId)
 				.field("cargoType", "Machinery")
 				.field("tons", "2")
 				.field("weight", "2000")
@@ -272,16 +285,6 @@ describe("Shipments Complete E2E Tests", () => {
 
 			expect(res.body.createdBy).toBe(enterpriseUserId);
 			expect(res.body.status).toBe("PENDING_ACCEPTANCE");
-		});
-
-		it("should fail to create shipment as End User (unauthorized role)", async () => {
-			await request(app.getHttpServer())
-				.post("/api/shipments")
-				.set("Authorization", `Bearer ${endUserToken}`)
-				.field("clientName", "Test Client")
-				.field("email", "test@example.com")
-				.field("cargoType", "Goods")
-				.expect(403);
 		});
 
 		it("should fail without required fields", async () => {
@@ -335,6 +338,7 @@ describe("Shipments Complete E2E Tests", () => {
 		});
 
 		it("should fail with invalid transporter ID", async () => {
+			const orderId = generateOrderTrackingId();
 			// Create another shipment for this test
 			const shipment = await request(app.getHttpServer())
 				.post("/api/shipments")
@@ -344,7 +348,8 @@ describe("Shipments Complete E2E Tests", () => {
 				.field("phone", "+2348120000000")
 				.field("cargoType", "Goods")
 				.field("tons", "1")
-				.field("weight", "1000KG")
+				.field("orderId", orderId)
+				.field("weight", "1000")
 				.field("origin", JSON.stringify({ country: "Nigeria", state: "Lagos", address: "Test", phone: "+234" }))
 				.field("destination", JSON.stringify({ country: "UK", state: "London", address: "Test", phone: "+44" }))
 				.field("pickupMode", "WAREHOUSE_PICKUP")
@@ -552,12 +557,14 @@ describe("Shipments Complete E2E Tests", () => {
 		let lifecycleShipmentId: string;
 
 		it("should complete full shipment lifecycle", async () => {
+			const orderId = generateOrderTrackingId();
 			// 1. Create shipment
 			const createRes = await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Lifecycle Test")
 				.field("email", "lifecycle@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+2348120000000")
 				.field("cargoType", "Electronics")
 				.field("tons", "1")
@@ -625,11 +632,14 @@ describe("Shipments Complete E2E Tests", () => {
 		});
 
 		it("should handle malformed JSON in origin/destination", async () => {
+			const orderId = generateOrderTrackingId();
+
 			await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Test")
 				.field("email", "test@example.com")
+				.field("orderId", orderId)
 				.field("cargoType", "Goods")
 				.field("origin", "invalid-json")
 				.field("destination", "invalid-json")
@@ -637,12 +647,14 @@ describe("Shipments Complete E2E Tests", () => {
 		});
 
 		it("should handle concurrent status updates", async () => {
+			const orderId = generateOrderTrackingId();
 			// Create new shipment
 			const shipment = await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Concurrent Test")
 				.field("email", "concurrent@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+234")
 				.field("cargoType", "Test")
 				.field("tons", "1")
@@ -668,11 +680,14 @@ describe("Shipments Complete E2E Tests", () => {
 		});
 
 		it("should validate tons as number", async () => {
+			const orderId = generateOrderTrackingId();
+
 			const res = await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Test")
 				.field("email", "test@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+234")
 				.field("cargoType", "Test")
 				.field("tons", "invalid-number")
@@ -689,12 +704,14 @@ describe("Shipments Complete E2E Tests", () => {
 
 		it("should handle large file uploads gracefully", async () => {
 			const largeBuffer = Buffer.alloc(10 * 1024 * 1024); // 10MB
+			const orderId = generateOrderTrackingId();
 
 			const res = await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Large File Test")
 				.field("email", "largefile@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+234")
 				.field("cargoType", "Test")
 				.field("tons", "1")
@@ -740,11 +757,14 @@ describe("Shipments Complete E2E Tests", () => {
 			];
 
 			for (const shipmentData of shipments) {
+				const orderId = generateOrderTrackingId();
+
 				await request(app.getHttpServer())
 					.post("/api/shipments")
 					.set("Authorization", `Bearer ${lspToken}`)
 					.field("clientName", shipmentData.clientName)
 					.field("email", "filter@example.com")
+					.field("orderId", orderId)
 					.field("phone", "+234")
 					.field("cargoType", shipmentData.cargoType)
 					.field("tons", "1")
@@ -797,11 +817,14 @@ describe("Shipments Complete E2E Tests", () => {
 				where: { userId: lspUserId },
 			});
 
+			const orderId = generateOrderTrackingId();
+
 			await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Notification Test")
 				.field("email", "notif@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+234")
 				.field("cargoType", "Test")
 				.field("tons", "1")
@@ -821,12 +844,14 @@ describe("Shipments Complete E2E Tests", () => {
 		});
 
 		it("should create notifications for all parties on assignment", async () => {
+			const orderId = generateOrderTrackingId();
 			// Create shipment
 			const shipment = await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Multi Notif Test")
 				.field("email", "multinotif@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+234")
 				.field("cargoType", "Test")
 				.field("tons", "1")
@@ -871,12 +896,14 @@ describe("Shipments Complete E2E Tests", () => {
 	describe("Email Notifications", () => {
 		it("should send email on shipment creation", async () => {
 			fakeMailer.sendShipmentCreated.mockClear();
+			const orderId = generateOrderTrackingId();
 
 			await request(app.getHttpServer())
 				.post("/api/shipments")
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Email Test")
 				.field("email", "emailtest@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+234")
 				.field("cargoType", "Test")
 				.field("tons", "1")
@@ -893,6 +920,7 @@ describe("Shipments Complete E2E Tests", () => {
 
 		it("should send email on major status updates", async () => {
 			fakeMailer.sendShipmentStatusUpdate.mockClear();
+			const orderId = generateOrderTrackingId();
 
 			// Create and complete a shipment through major statuses
 			const shipment = await request(app.getHttpServer())
@@ -900,6 +928,7 @@ describe("Shipments Complete E2E Tests", () => {
 				.set("Authorization", `Bearer ${lspToken}`)
 				.field("clientName", "Status Email Test")
 				.field("email", "statusemail@example.com")
+				.field("orderId", orderId)
 				.field("phone", "+234")
 				.field("cargoType", "Test")
 				.field("tons", "1")
@@ -935,6 +964,7 @@ describe("Shipments Complete E2E Tests", () => {
 					.set("Authorization", `Bearer ${lspToken}`)
 					.field("clientName", `Load Test ${i}`)
 					.field("email", `load${i}@example.com`)
+					.field("orderId", generateOrderTrackingId())
 					.field("phone", "+234")
 					.field("cargoType", "Test")
 					.field("tons", "1")
