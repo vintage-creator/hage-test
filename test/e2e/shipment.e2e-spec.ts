@@ -2,9 +2,9 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import request from "supertest";
-import { AppModule } from "../../src/app.module";
-import { PrismaService } from "../../src/prisma/prisma.service";
-import { MailService } from "../../src/common/mail/mail.service";
+import { AppModule } from "../app.module";
+import { PrismaService } from "../prisma/prisma.service";
+import { MailService } from "../common/mail/mail.service";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import { RoleType } from "@prisma/client";
