@@ -2,7 +2,13 @@
   <mj-head>
     <mj-attributes>
       <mj-all font-family="Helvetica, Arial, sans-serif" />
-     <mj-class name="btn" background-color="#22C55E" color="#ffffff" border-radius="6px" padding="12px 24px" />
+      <mj-class
+        name="btn"
+        background-color="#2563EB"
+        color="#ffffff"
+        border-radius="6px"
+        padding="12px 24px"
+      />
     </mj-attributes>
 
     <mj-preview>Your shipment has been created successfully!</mj-preview>

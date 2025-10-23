@@ -2,10 +2,16 @@
   <mj-head>
     <mj-attributes>
       <mj-all font-family="Helvetica, Arial, sans-serif" />
-     <mj-class name="btn" background-color="#22C55E" color="#ffffff" border-radius="6px" padding="12px 24px" />
+      <mj-class
+        name="btn"
+        background-color="#2563EB"
+        color="#ffffff"
+        border-radius="6px"
+        padding="12px 24px"
+      />
     </mj-attributes>
 
-    <mj-preview>Your shipment has been created successfully!</mj-preview>
+    <mj-preview>Your shipment status has been updated!</mj-preview>
   </mj-head>
 
   <mj-body background-color="#F5F7FA">
@@ -32,7 +38,7 @@
     <mj-section background-color="#ffffff" padding="24px" border-radius="8px">
       <mj-column>
         <mj-text font-size="20px" font-weight="700">
-          Shipment Created Successfully 🚚
+          Shipment Status Update 🚚
         </mj-text>
 
         <mj-text
@@ -42,8 +48,7 @@
           line-height="1.6"
         >
           Hi {{clientName}}, <br />
-          Your shipment has been successfully created. Below are the details of
-          your order:
+          Your shipment <strong>{{trackingNumber}}</strong> has been updated.
         </mj-text>
 
         <mj-text
@@ -52,11 +57,10 @@
           padding-top="12px"
           line-height="1.8"
         >
-          <strong>Tracking Number:</strong> {{trackingNumber}} <br />
+          <strong>Current Status:</strong> {{status}} <br />
           <strong>Origin:</strong> {{origin}} <br />
           <strong>Destination:</strong> {{destination}} <br />
-          <strong>Estimated Delivery:</strong> {{estimatedDelivery}} <br />
-          <strong>Status:</strong> {{status}}
+          <strong>Estimated Delivery:</strong> {{estimatedDelivery}}
         </mj-text>
 
         <mj-button
@@ -65,17 +69,18 @@
           target="_blank"
           padding-top="18px"
         >
-          Track Your Shipment
+          View Shipment Details
         </mj-button>
 
         <mj-text color="#6B7280" font-size="13px" padding-top="18px">
-          You can use your tracking number anytime to check delivery progress.
+          You can track this shipment anytime using your tracking number:
+          {{trackingNumber}}.
         </mj-text>
 
         <mj-divider border-color="#E5E7EB" padding="20px 0" />
 
         <mj-text font-size="12px" color="#9CA3AF">
-          © {{year}} {{appName}}. All rights reserved.
+          © {{year}} {{appName}} · {{supportText}}
         </mj-text>
       </mj-column>
     </mj-section>
